@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    :root { --main: #2e7d32; --line: #ccc; --bg: #fafaf5; }
+    body { font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif; background: var(--bg); color: #222; margin: 0; padding: 16px; }
+    main { max-width: 860px; margin: 0 auto; }
+    h1 { color: var(--main); font-size: 22px; margin: 0 0 4px; }
+    .hint { color: #666; font-size: 14px; margin: 0 0 16px; }
+    form { display: grid; grid-template-columns: 160px 1fr 1fr 110px auto; gap: 8px; align-items: end; }
+    select { width: 100%; box-sizing: border-box; padding: 8px; font-size: 16px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+    label { display: block; font-size: 14px; color: #444; margin-bottom: 4px; }
+    input { width: 100%; box-sizing: border-box; padding: 8px; font-size: 16px; border: 1px solid var(--line); border-radius: 4px; }
+    button { padding: 9px 16px; font-size: 16px; border: 0; border-radius: 4px; background: var(--main); color: #fff; cursor: pointer; }
+    button:disabled { opacity: .5; }
+    .msg { margin: 16px 0; color: #666; }
+    .error { color: #c62828; }
+    .range { border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 12px 16px; margin: 16px 0; }
+    .block { border-top: 1px dashed var(--line); padding: 10px 0; }
+    .block:first-child { border-top: 0; }
+    .block h2 { font-size: 16px; margin: 0 0 6px; color: var(--main); }
+    .line { margin: 4px 0; line-height: 1.7; }
+    .time { font-weight: bold; white-space: nowrap; }
+    .links a { display: block; word-break: break-all; margin: 2px 0; }
+    .copy { background: #fff; color: var(--main); border: 1px solid var(--main); padding: 4px 10px; font-size: 14px; margin-top: 6px; }
+    @media (max-width: 640px) { form { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>廣論時時聽-範圍搜尋</h1>
+  <p class="hint">輸入原文的起始文字與結尾文字（不用輸入標點符號），找出播放範圍與連結。</p>
+  <form id="form">
+    <div><label for="tch">音檔類別</label>
+      <select id="tch">
+        <option value="gl1" selected>廣論-南普陀版</option>
+        <option value="ggl2" disabled>全球廣論-II</option>
+        <option value="gl2" disabled>廣論-鳳山寺版</option>
+        <option value="nv1" disabled>南山律在家備覽</option>
+      </select>
+    </div>
+    <div><label for="start">起始文字</label><input id="start" placeholder="例：如昔於" required></div>
+    <div><label for="end">結尾文字</label><input id="end" placeholder="例：人能知" required></div>
+    <div><label for="parts">切割成幾份</label><input id="parts" type="number" min="1" value="1"></div>
+    <div><button id="go" type="submit">搜尋</button></div>
+  </form>
+  <div id="out"></div>
+</main>
+<script>
+  var out = document.getElementById('out');
+  var go = document.getElementById('go');
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  // 複製用的純文字：標題一行，下面接播放連結
+  function plain(d) {
+    return ['(' + d.label + ') ' + d.title].concat(d.links).join('\n');
+  }
+
+  function block(d, heading) {
+    return '<div class="block">' +
+      (heading ? '<h2>' + esc(heading) + '</h2>' : '') +
+      '<div class="line">第 ' + esc(d.startChapter) + ' 卷 開始時間 <span class="time">' + esc(d.startTime) + '</span> ' + esc(d.startText) + ' ~</div>' +
+      '<div class="line">第 ' + esc(d.endChapter) + ' 卷 結束時間 <span class="time">' + esc(d.endTime) + '</span> ' + esc(d.endText) + '</div>' +
+      '<div class="line">總共 <span class="time">' + esc(d.total) + '</span></div>' +
+      '<div class="line">(' + esc(d.label) + ') ' + esc(d.title) + '</div>' +
+      '<div class="links">' + d.links.map(function (u) {
+        return '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(u) + '</a>';
+      }).join('') + '</div>' +
+      '<button class="copy" type="button" data-text="' + esc(plain(d)) + '">複製</button>' +
+      '</div>';
+  }
+
+  function show(ranges) {
+    var html = ranges.length > 1 ? '<p class="msg">起始文字出現 ' + ranges.length + ' 次，列出每一個範圍。</p>' : '';
+    ranges.forEach(function (r) {
+      html += '<div class="range">' + block(r.whole, '') +
+        r.pieces.map(function (p) { return block(p, '第 ' + p.label + ' 份'); }).join('') + '</div>';
+    });
+    out.innerHTML = html;
+  }
+
+  out.addEventListener('click', function (e) {
+    var b = e.target.closest('.copy');
+    if (!b) return;
+    navigator.clipboard.writeText(b.getAttribute('data-text')).then(function () {
+      b.textContent = '已複製';
+      setTimeout(function () { b.textContent = '複製'; }, 1500);
+    });
+  });
+
+  document.getElementById('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    go.disabled = true;
+    out.innerHTML = '<p class="msg">搜尋中……</p>';
+    google.script.run
+      .withSuccessHandler(function (ranges) { go.disabled = false; show(ranges); })
+      .withFailureHandler(function (err) {
+        go.disabled = false;
+        out.innerHTML = '<p class="msg error">' + esc(String(err.message || err).replace(/^Error:\s*/, '')) + '</p>';
+      })
+      .findRange(document.getElementById('tch').value, document.getElementById('start').value, document.getElementById('end').value, document.getElementById('parts').value);
+  });
+</script>
+</body>
+</html>
